@@ -15,37 +15,63 @@
  * Ответ будет приходить в поле {result}
  */
 import Api from '../tools/api';
+import { compose, tap , pipe, ifElse, length, flip, curry, __, modulo } from 'ramda'
+import { validate, isValid, getValue, getErrorMsg } from './stringValidator';
 
 const api = new Api();
 
-/**
- * Я – пример, удали меня
- */
-const wait = time => new Promise(resolve => {
-    setTimeout(resolve, time);
-})
-
 const processSequence = ({value, writeLog, handleSuccess, handleError}) => {
-    /**
-     * Я – пример, удали меня
-     */
-    writeLog(value);
+    const log = tap(writeLog);
 
-    api.get('https://api.tech/numbers/base', {from: 2, to: 10, number: '01011010101'}).then(({result}) => {
-        writeLog(result);
-    });
+    //Api functions
+    const formDec2binPayload = (number) => {
+        return {
+            from: 10,
+            to: 2,
+            number
+        }
+    }
+    const dec2bin = compose(api.get('https://api.tech/numbers/base'), formDec2binPayload)
+    const getAnimal = (id) => api.get(`https://animals.tech/${id}`, {});
+    const getResult = ({result}) => result;
 
-    wait(2500).then(() => {
-        writeLog('SecondLog')
 
-        return wait(1500);
-    }).then(() => {
-        writeLog('ThirdLog');
+    const operateWithNumber = pipe(
+        Number.parseFloat,
+        Math.floor,
+        log,
+        dec2bin
+    )
 
-        return wait(400);
-    }).then(() => {
-        handleSuccess('Done');
-    });
+    const qrt = curry(flip(Math.pow))(2);
+
+    pipe(
+        log,
+        validate,
+        ifElse(
+            isValid,
+            compose(operateWithNumber, getValue),
+            compose((error) => Promise.reject(error), getErrorMsg)
+        )
+    )(value).then(
+        pipe(
+            getResult,
+            log,
+            String,
+            length,
+            log,
+            qrt,
+            log,
+            modulo(__, 3),
+            log,
+            getAnimal
+        )
+    ).then(
+        pipe(
+            getResult,
+            handleSuccess
+        )
+    ).catch(handleError);
 }
 
 export default processSequence;
